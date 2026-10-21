@@ -1,13 +1,13 @@
 # Anime Player Cloudflare Worker (Miruro + Animelok)
 
-A lightweight, standalone Cloudflare Worker that resolves anime video streams using **Miruro** with fallback to **Animelok**, and renders an embedded video player (powered by Plyr and HLS.js or responsive embed iframe).
+A lightweight, standalone Cloudflare Worker that resolves anime video streams using **Miruro** with fallback to **Animelok**, rendering an embedded video player (powered by Plyr and HLS.js for master/nested `.m3u8` playlists or responsive embed iframe).
 
 ## Features
 
 - **AniList ID Resolution**: Pass any AniList anime ID directly.
 - **Miruro & Animelok Fallback**: Automatically attempts Miruro resolution first; if video is unavailable, seamlessly falls back to Animelok.
 - **Sub / Dub Selection**: Seamlessly specify subtitled (`&ub=s`) or dubbed (`&ub=d`) tracks via URL query parameters.
-- **Embedded Player**: Renders an HTML5 video player (Plyr.js with HLS stream support and subtitle tracks) or responsive iframe player.
+- **Embedded Player**: Renders an HTML5 video player (Plyr.js with HLS master/nested stream support and subtitle tracks) or responsive iframe player.
 - **JSON Endpoint Option**: Optional `&format=json` query parameter to return raw stream details instead of HTML.
 
 ---
@@ -45,39 +45,42 @@ A lightweight, standalone Cloudflare Worker that resolves anime video streams us
 
 ---
 
-## Development & Deployment
+## Deployment to Cloudflare
 
-### Prerequisites
+You can deploy this worker to Cloudflare using **either** direct GitHub integration or the Wrangler CLI:
 
-- Node.js / Bun installed
-- [Cloudflare Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
+### Option A: Direct GitHub Integration (Point Cloudflare at Repository)
 
-### Local Testing
+Yes! You can connect your GitHub repository directly to Cloudflare Workers / Pages:
 
-1. Install dependencies:
+1. Push this repository to GitHub.
+2. Log into the [Cloudflare Dashboard](https://dash.cloudflare.com/).
+3. Navigate to **Workers & Pages** > **Create application**.
+4. Select the **Pages** or **Workers** tab and choose **Connect to Git**.
+5. Select your repository and set the **Root Directory** to `worker`.
+6. Set the Build settings:
+   - **Framework preset**: None
+   - **Build command**: `bun install && bun run typecheck`
+   - **Build output directory**: (Leave empty for Workers)
+7. Click **Save and Deploy**. Cloudflare will automatically build and deploy the worker whenever you push commits to GitHub.
+
+---
+
+### Option B: Deploy via Wrangler CLI
+
+1. Install dependencies inside the `worker` directory:
    ```bash
    cd worker
    bun install
    ```
 
-2. Run local development server:
+2. Run local development server to test:
    ```bash
    bun run dev
    ```
 
-3. Test in your browser:
-   `http://localhost:8787/21?ub=s`
-
-### Type Checking
-
-```bash
-bun run typecheck
-```
-
-### Deployment to Cloudflare Workers
-
-Deploy directly to your Cloudflare account using Wrangler:
-
-```bash
-bun run deploy
-```
+3. Authenticate and deploy directly to Cloudflare:
+   ```bash
+   npx wrangler login
+   bun run deploy
+   ```

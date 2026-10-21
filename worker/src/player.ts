@@ -21,6 +21,7 @@ export function renderPlayerHtml(video: ResolvedVideo, title: string): string {
   }
 
   const subtitlesJson = JSON.stringify(video.subtitles || []);
+  const headersJson = JSON.stringify(video.headers || {});
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -46,6 +47,7 @@ export function renderPlayerHtml(video: ResolvedVideo, title: string): string {
     const streamUrl = ${JSON.stringify(video.url)};
     const isHls = ${JSON.stringify(video.format === "hls")};
     const subtitles = ${subtitlesJson};
+    const customHeaders = ${headersJson};
     const videoElement = document.getElementById('player');
 
     // Add subtitle tracks
@@ -74,30 +76,65 @@ export function renderPlayerHtml(video: ResolvedVideo, title: string): string {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+        xhrSetup: function (xhr, url) {
+          if (customHeaders) {
+            Object.keys(customHeaders).forEach(function (key) {
+              // Note: Browser security restricts setting User-Agent/Referer directly via XHR
+              if (key.toLowerCase() !== 'user-agent' && key.toLowerCase() !== 'referer') {
+                xhr.setRequestHeader(key, customHeaders[key]);
+              }
+            });
+          }
+        }
       });
+
       hls.loadSource(streamUrl);
       hls.attachMedia(videoElement);
-      hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
-        const availableQualities = hls.levels.map((l) => l.height);
-        availableQualities.unshift(0); // Auto
 
-        defaultOptions.quality = {
-          default: 0,
-          options: availableQualities,
-          forced: true,
-          onChange: (e) => {
-            if (e === 0) {
-              hls.currentLevel = -1;
-            } else {
-              hls.levels.forEach((level, levelIndex) => {
-                if (level.height === e) {
-                  hls.currentLevel = levelIndex;
-                }
-              });
-            }
-          },
-        };
+      hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+        // Automatically populate Plyr quality menu from HLS level resolutions (handles master/nested m3u8)
+        const availableQualities = hls.levels
+          .map((l) => l.height)
+          .filter((height, index, self) => height && self.indexOf(height) === index);
+
+        if (availableQualities.length > 0) {
+          availableQualities.unshift(0); // 0 = Auto
+          defaultOptions.quality = {
+            default: 0,
+            options: availableQualities,
+            forced: true,
+            onChange: (e) => {
+              if (e === 0) {
+                hls.currentLevel = -1; // Auto level selection
+              } else {
+                hls.levels.forEach((level, levelIndex) => {
+                  if (level.height === e) {
+                    hls.currentLevel = levelIndex;
+                  }
+                });
+              }
+            },
+          };
+        }
+
         new Plyr(videoElement, defaultOptions);
+      });
+
+      // Error handler for fallback
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              break;
+          }
+        }
       });
     } else {
       videoElement.src = streamUrl;
